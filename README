@@ -1,0 +1,5 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=511
+
+This script allows users to jump to the next or previous case (or
+default) in a C switch statement by typing ]s or [s, respectively.
+
