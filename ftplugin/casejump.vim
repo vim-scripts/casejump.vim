@@ -2,7 +2,9 @@
 " Language:     C
 " File:		casejump.vim
 " Maintainer:	Gary Johnson <garyjohn@spk.agilent.com>
-" Last Change:	2002-12-11 22:14:36
+" Last Change:	2003-11-29 14:17:26
+" Version:	1.1
+" URL:		http://vim.sourceforge.net/scripts/script.php?script_id=511
 
 " By default, this plugin implements two jump or go-to macros:
 "
@@ -65,15 +67,69 @@ if !exists("*s:CaseJump")
 	" Save original cursor and screen location.
 	"
 	let curr_line = line(".")
-	normal H
-	let restoretop = line(".") . "normal!zt"
+	let restore_cursor = "normal!" . curr_line . "G" . virtcol(".") . "|"
+	normal! H
+	let restore_screen = line(".") . "normal!zt"
 
-	" Find limits of enclosing block, assumed to be the desired switch.
+	" Find limits of enclosing switch block.
 	"
-	execute curr_line . 'normal [{'
-	let top = line(".")		" First line of the switch.
-	normal %
-	let bottom = line(".")		" Last line of the switch.
+	execute restore_cursor
+	if getline('.')[col('.') - 1] == '{'
+	    " The cursor is already on an opening bracket.  Advance the
+	    " cursor so that this bracket is found by the first search for
+	    " the top of a block.
+
+	    execute "normal! \<CR>"
+	endif
+	let prev_top = line('.')
+	while 1
+	    normal! [{
+	    let top = line(".")		" First line of the block.
+	    if top == prev_top
+		" The cursor didn't move so we must be at the top of the
+		" function.  No switch was found among any of the blocks
+		" enclosing the original line.
+
+		" Restore screen and cursor to original positions.
+		"
+		execute restore_screen
+		execute restore_cursor
+
+		" Display error message and exit.
+		"
+		echohl ErrorMsg
+		echo "Not in a switch-case block"
+		echohl None
+		return
+	    endif
+	    let switchline = search('\<switch\_s*(','bW')
+	    if switchline
+		let switchline = search('{','W')
+	    endif
+	    if switchline == 0
+		" No switch statement was found above the top of this block.
+
+		" Restore screen and cursor to original positions.
+		"
+		execute restore_screen
+		execute restore_cursor
+
+		" Display error message and exit.
+		"
+		echohl ErrorMsg
+		echo "Not in a switch-case block"
+		echohl None
+		return
+	    endif
+	    if switchline == top
+		break
+	    endif
+	    execute top
+	    let prev_top = top
+	endwhile
+
+	normal! %
+	let bottom = line(".")		" Last line of the switch block.
 
 	" If the current line is a case or default label, use its indent
 	" level.  Otherwise, find the indent level of the first label in the
@@ -87,11 +143,10 @@ if !exists("*s:CaseJump")
 	    if (next_line == 0) || (next_line > bottom)
 		" No case or default label was found within this block.
 
-		" Restore screen and cursor to original positions.  (Cursor
-		" column may be different.)
+		" Restore screen and cursor to original positions.
 		"
-		execute restoretop
-		execute curr_line . 'normal ^'
+		execute restore_screen
+		execute restore_cursor
 
 		" Display error message and exit.
 		"
@@ -106,11 +161,11 @@ if !exists("*s:CaseJump")
 	" Restore screen to original position to avoid annoying jumping of
 	" the display.
 	"
-	execute restoretop
+	execute restore_screen
 
 	" Restore cursor to original line and begin search for next label.
 	"
-	execute curr_line . 'normal ^'
+	execute curr_line . 'normal! ^'
 	let next_line = search('\%'.col.'v\(case\>\|default\>\)', 'w'.a:flag)
 	if (next_line > bottom) || (next_line < top)
 	    if a:flag == 'b'
@@ -119,8 +174,8 @@ if !exists("*s:CaseJump")
 		execute top
 	    endif
 	    let next_line = search('\%'.col.'v\(case\>\|default\>\)', 'w'.a:flag)
-	    execute restoretop
-	    execute next_line . 'normal ^'
+	    execute restore_screen
+	    execute next_line . 'normal! ^'
 	endif
     endfunction
 endif
